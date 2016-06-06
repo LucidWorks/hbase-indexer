@@ -1,8 +1,9 @@
+
 = HBase Indexer
+// tag::hbase-indexer[]
 
-The HBase Indexer allows you to easily and quickly index HBase rows into Solr.
-
-This uses HBase replication to copy rows from HBase to the Solr index in real-time.
+// tag::features-hbase[]
+The HBase Indexer allows you to easily and quickly index HBase rows into Solr. It uses HBase replication to copy rows from HBase to the Solr index in real-time.
 
 // Usage documentation can be found on the hbase-indexer Wiki - http://github.com/NGDATA/hbase-indexer/wiki.
 
@@ -15,8 +16,10 @@ This project is a fork of the original http://github.com/NGDATA/hbase-indexer[hb
 * Kerberos authentication
 * Output to Lucidworks Fusion pipelines (optional)
 
-IMPORTANT: Due to the changes required for Solr 5.x support, builds from this fork will not work with Solr 4.x.
+IMPORTANT: Due to the changes required for Solr 5.x support, builds from this fork of the main project will not work with Solr 4.x.
 
+// end::features-hbase[]
+// tag::subprojects-hbase[]
 == Subprojects
 
 === HBase SEP
@@ -27,29 +30,226 @@ A standalone library for asynchronously processing HBase mutation events by hook
 
 A standalone utility to monitor HBase replication progress, see <<hbase-sep/hbase-sep-tools/README.md, the SEP-tools readme>>.
 
+//end::subprojects-hbase[]
+// tag::build-hbase[]
 == How to Build
 
 === Building for General Use
 
 You can build the full hbase-indexer project as follows:
 
-    mvn clean install -DskipTests
+   mvn clean install -DskipTests
 
 // **The profile 0.98, 0.96, 0.94 cannot be used at the moment since the code was modified to work with HBase 1.1.0**
 
 The default build is linked to HBase 0.94. In order to build for HBase 0.98, run the following command:
 
-    mvn clean install -DskipTests -Dhbase.api=0.98
+   mvn clean install -DskipTests -Dhbase.api=0.98
 
 To build for HBase 1.1.0, run the following command:
 
-    mvn clean install -DskipTests -Dhbase.api=1.1.0
+   mvn clean install -DskipTests -Dhbase.api=1.1.0
 
+=== Building Hortonworks Version
 
-==== Building Hortonworks Version
+In order to build the full hbase-indexer project with a specific version of Hortonworks.
 
-In order to build the full hbase-indexer project with an specific version of Hortonworks.
+   mvn clean package -Pdist -DskipTests -Dhbase.api=1.1.2 -Dhdp.version=".2.4.2.0-258"
 
-      mvn clean package -Pdist -DskipTests -Dhbase.api=1.1.2 -Dhdp.version=".2.4.2.0-258"
+The profile 1.1.2 can only be used with the hdp version suffix (`-Dhdp.version`).
+// end::build-hbase][]
 
-**The profile 1.1.2 can be used with the hdp version suffix. (`-Dhdp.version`)**
+// tag::use-hbase-indexer[]
+// tag::how-it-works[]
+== How the HBase Indexer Works
+
+The HBase Indexer works as an HBase replication sink and runs as a daemon. When updates are written to HBase region servers, they are replicated to the HBase Indexer processes. These processes then pass the updates to Solr for indexing.
+
+There are several configuration files to prepare before using the HBase Indexer. Then a specific configuration for your your HBase table must be supplied to map HBase rows to Solr documents.
+
+If you are already using HBase replication, the HBase Indexer process should not interfere.
+// end::how-itworks[]
+
+// tag::configure-daemon[]
+== HBase Indexer Daemon Setup
+Each of the following configuration changes need to be made to use the HBase Indexer.
+
+NOTE: These instructions assume Solr is running and a collection already exists for the data to be indexed. Solr does not need to be restarted to start using the HBase Indexer.
+
+=== Configure hbase-indexer-site.xml
+
+The first step to configuring the HBase Indexer is to define the ZooKeeper connect string and quorum location in `hbase-indexer-site.xml`, found in `/opt/${namePackage}/hbase-indexer/conf`.
+
+The properties to define are the `hbaseindexer.zookeeper.connectstring` and `hbaseindexer.zookeeper.quorum` as in this example:
+
+[source,xml]
+<configuration>
+   <property>
+      <name>hbaseindexer.zookeeper.connectstring</name>
+      <value>server1:2181,server2:2181,server3:2181</value>
+   </property>
+   <property>
+      <name>hbase.zookeeper.quorum</name>
+      <value>server1,server2,server3</value>
+   </property>
+</configuration>
+
+Customize the server names and ports as appropriate for your environment.
+
+=== Configure hbase-site.xml
+
+The `hbase-site.xml` file on each HBase node needs to be modified to include several new properties, as shown below:
+
+[source,xml]
+<configuration>
+   <!-- SEP is basically replication, so enable it -->
+   <property>
+      <name>hbase.replication</name>
+      <value>true</value>
+   </property>
+   <property>
+      <name>replication.source.ratio</name>
+      <value>1.0</value>
+   </property>
+   <property>
+      <name>replication.source.nb.capacity</name>
+      <value>1000</value>
+   </property>
+   <property>
+      <name>replication.replicationsource.implementation</name>
+      <value>com.ngdata.sep.impl.SepReplicationSource</value>
+   </property>
+</configuration>
+
+In more detail, these properties are:
+
+* `hbase.replication`: True or false; enables replication.
+* `replication.source.ratio`: Source ratio of 100% makes sure that each SEP consumer is actually used (otherwise, some can sit idle, especially with small clusters).
+* `replication.source.rb`: The maximum number of hlog entries to replicate in one go. If this is large, and a consumer takes a while to process the events, the HBase rpc call will time out.
+* `replication.replicationsource.implementation`: A custom replication source for indexing content to Solr.
+
+Once these values have been inserted to that file, HBase will need to be restarted. That is an upcoming step in the configuration.
+
+TIP: If you use Ambari to manage your cluster, you can set the properties by going to the HBase Configs screen at Ambari -> Configs -> Advanced tab -> Custom hbase-site.
+
+=== Copy JAR Files
+
+The SEP replication being used by HBase Indexer requires 4 jar files to be copied from to each HBase node.
+
+These jar files can be found in the `/opt/${namePackage}/hbase-indexer/lib` directory.
+
+They need to be copied to the `$HBASE_HOME/lib` directory on each node running HBase. These files are:
+
+* `hbase-sep-api-{version}.jar`
+* `hbase-sep-impl-{version}.jar`
+* `hbase-sep-impl-common-{version}.jar`
+* `hbase-sep-tools-{version}.jar`
+
+=== Enable Kerberos Support
+If you want to index content to a Solr cluster that has been secured with Kerberos for internode communication, you will need to supply the path to a JAAS file. This file configures the authentication properties, and will include a section for a service principal and keytab file for a user who has access to both HBase and Solr. This user should be a different user than the service principal that Solr is using for internode communication.
+
+To configure HBase Indexer to be able to write to the Kerberized Solr, you will modify the `hbase-indexer` script found in `/opt/${namePackage}/hbase-indexer/bin`. The properties are commented out by default:
+
+[source]
+#HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Dlww.jaas.file="
+#HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Dlww.jaas.appname="
+
+Remove the `#` to uncomment these lines, and supply values for each property:
+
+`-Dlww.jaas.file`::
+The full path to a JAAS configuration file that includes a section to define the keytab location and service principal that will be used to write index updates to Solr.
++
+Here is a sample section of a JAAS file, and the areas that must be changed for your environment:
++
+[source]
+Client { --<1>
+  com.sun.security.auth.module.Krb5LoginModule required
+  useKeyTab=true
+  keyTab="/data/solr-indexer.keytab" --<2>
+  storeKey=true
+  useTicketCache=true
+  debug=true
+  principal="solr-indexer@SOLRSERVER.COM"; --<3>
+};
++
+<1> The name of this section of the JAAS file. This name will be used with the `lww.jaas.appname` parameter as described below.
+<2> The location of the keytab file.
+<3> The service principal name. This should be a different principal than the one used for Solr, but must have access to both Solr and HBase.
+
+`-Dlww.jaas.appname`::
+The name of the section in the JAAS file that includes the service principal and keytab location, as described above. If this is not defined, a default of "Client" will be used.
+
+=== Restart HBase
+
+Once each of the above changes have been made, restart HBase on all nodes.
+
+=== Copy hbase-site.xml to HBase Indexer
+Once you have added the new properties to `hbase-site.xml`, copy the file from `/etc/hbase/conf` to `/opt/${namePackage}/hbase-indexer/conf`.
+
+This step isn't always required, but if you have problems with table data being indexed to Solr, it's likely the HBase Indexer is having problems connecting to ZooKeeper. Copying this file will ensure all of the ZooKeeper parameters are available to the HBase Indexer.
+
+=== Start HBase Indexer Daemon
+
+When configuration is complete and HBase has been restarted, you can start the HBase Indexer.
+
+From `/opt/${namePackage}/hbase-indexer/bin`, run:
+
+   hbase-indexer server &
+
+The `&` portion of this command will run the server in the background. If you would like to run it in the foreground, omit the `&` part of the above example.
+
+At this point the HBase Indexer daemon is running, you are ready to start indexing content.
+// end::configure-daemon[]
+
+// tag::stream-data-indexer[]
+== Stream Data from HBase Indexer to Solr
+
+The HBase Indexer replicates content being written to HBase and streams it to Solr for indexing.
+
+IMPORTANT: The HBase table that will be indexed must have the REPLICATION_SCOPE set to "1".
+
+If you are not familiar with HBase, the HBase Indexer tutorial provides a good starting point for creating a simple table and indexing it to Solr at https://github.com/NGDATA/hbase-indexer/wiki/Tutorial.
+
+=== Add an Indexer
+
+In order to process HBase events, an indexer must be created.
+
+First you need to create an indexer configuration file, which is a simple XML file to tell the HBase Indexer how to map HBase columns to Solr fields, For example:
+
+[source,xml]
+<?xml version="1.0"?>
+<indexer table="indexdemo-user">
+   <field name="firstname_s" value="info:firstname"/>
+   <field name="lastname_s" value="info:lastname"/>
+   <field name="age_i" value="info:age" type="int"/>
+</indexer>
+
+Note that this defines the Solr field name, then the HBase column, and optionally, the field type. The `indexer-table` value must also reflect the name of the table you intend to index.
+
+More details on the indexer configuration options are available from https://github.com/NGDATA/hbase-indexer/wiki/Indexer-configuration.
+
+=== Start an Indexer Process
+
+Once we have an indexer configuration file, we can then start the indexer itself with the `add-indexer` command.
+
+This command takes several properties, as in this example:
+
+[source,bash]
+----
+./hbase-indexer add-indexer \ -- <1>
+  -n myindexer \ -- <2>
+  -c indexer-conf.xml \ -- <3>
+  -cp solr.zk=server1:3181,server2:3181,server3:3181 \ -- <4>
+  -cp solr.collection=myCollection -- <5>
+----
+
+<1> The `hbase-indexer` script is found in `/opt/${namePackage}/hbase-indexer/bin` directory. The `add-indexer` command adds the indexer to the running hbase-indexer daemon.
+<2> The `-n` property provides a name for the indexer.
+<3> The `-c` property defines the location of the indexer configuration file. Provide the path as well as the filename if you are launching the
+<4> The `-cp` property is a key-value pair. In this case, it defines the location of ZooKeeper with the `solr.zk` property.
+<5> Another `-cp` key-value pair, which defines the `solr.collection` property with a value of a collection name in Solr that the documents should be indexed to. This collection must exist prior to running the indexer.
+
+More details on the options for `add-indexer` are available from https://github.com/NGDATA/hbase-indexer/wiki/CLI-tools.
+// end::stream-data-indexer[]
+// end::use-hbase-indexer[]
+// end::hbase-indexer[]
