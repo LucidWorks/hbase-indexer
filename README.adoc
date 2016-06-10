@@ -154,6 +154,7 @@ If you want to index content to a Solr cluster that has been secured with Kerber
 
 A JAAS file configures the authentication properties, and will include a section for a service principal and keytab file for a user who has access to both HBase and Solr. This user should be a different user than the service principal that Solr is using for internode communication.
 
+==== Kerberos Parameters
 To configure HBase Indexer to be able to write to Kerberized Solr, you will modify the `hbase-indexer` script found in `/opt/${namePackage}/hbase-indexer/bin`.
 
 Find the section where two of the properties are commented out by default:
@@ -165,22 +166,30 @@ Find the section where two of the properties are commented out by default:
 Uncomment those properties to supply the correct values (explained below), and then add another property:
 
 [source]
-HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Djava.security.auth.login.config=/etc/hbase/conf/hbase_client_jaas.conf"
+HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Djava.security.auth.login.config="
 
 The three together should look similar to this:
 
 [source]
 HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Dlww.jaas.file="
+HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Djava.security.auth.login.config="
 HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Dlww.jaas.appname="
-HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Djava.security.auth.login.config=/etc/hbase/conf/hbase_client_jaas.conf"
 
-Remove the `#` to uncomment these lines, and supply values for each property:
+Remove the `#` to uncomment existing lines, and supply values for each property:
 
 `-Dlww.jaas.file`::
-The full path to a JAAS configuration file that includes a section to define the keytab location and service principal that will be used to write index updates to Solr.
-+
-Here is a sample section of a JAAS file, and the areas that must be changed for your environment:
-+
+The full path to a JAAS configuration file that includes a section to define the keytab location and service principal that will be used to run the HBase Indexer. This user must have access to both HBase and Solr, but should be a different user.
+
+`-Djava.security.auth.login.config`::
+The path to the JAAS file which includes a section for the HBase user. This can be the same file that contains the definitions for the HBase Indexer user, but must be defined separately.
+
+`-Dlww.jaas.appname`::
+The name of the section in the JAAS file that includes the service principal and keytab location for the user who will run the HBase Indexer, as shown below. If this is not defined, a default of "Client" will be used.
+
+==== Sample JAAS File
+
+Here is a sample JAAS file, and the areas that must be changed for your environment:
+
 [source]
 Client { --<1>
   com.sun.security.auth.module.Krb5LoginModule required
@@ -200,19 +209,13 @@ SolrClient { --<4>
   debug=true
   principal="solr-indexer@SOLRSERVER.COM"; --<6>
 };
-+
-<1> The name of this section of the JAAS file. This first section named "Client" should contain the proper credentials for HBase and ZooKeeper.
+
+<1> The name of the section of the JAAS file for the HBase user. This first section named "Client" should contain the proper credentials for HBase and ZooKeeper.
 <2> The path to the keyTab file for the HBase user. The user running the hbase-indexer must have access to this file.
 <3> The service principal name for the HBase user.
-<4> The name of another section. This second section is named "SolrClient" and should contain the proper credentials for the user who will run the hbase-indexer. This section name will be used with the `-Dlww.jaas.appname` parameter as described below.
-<5> The path to the keyTab file for the Solr user. The user running the hbase-indexer must have access to this file.
+<4> The name of the section for the user who will run the HBase Indexer. This second section is named "SolrClient" and should contain the proper credentials for the user who will run the HBase Indexer. This section name will be used with the `-Dlww.jaas.appname` parameter as described earlier.
+<5> The path to the keyTab file for the Solr user. The user running the HBase Indexer must have access to this file.
 <6> The service principal name. This should be a different principal than the one used for Solr, but must have access to both Solr and HBase.
-
-`-Dlww.jaas.appname`::
-The name of the section in the JAAS file that includes the service principal and keytab location, as described above. If this is not defined, a default of "Client" will be used.
-
-`Djava.security.auth.login.config`::
-The path to the `hbase_client_jaas.conf` file which was set up when HBase was configured to use Kerberos.
 
 === Restart HBase
 
