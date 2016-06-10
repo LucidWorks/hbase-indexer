@@ -1,3 +1,4 @@
+:connectorVersion: 2.2.2
 
 = HBase Indexer
 // tag::hbase-indexer[]
@@ -38,25 +39,22 @@ A standalone utility to monitor HBase replication progress, see <<hbase-sep/hbas
 
 You can build the full hbase-indexer project as follows:
 
-   mvn clean install -DskipTests
+   mvn clean package -DskipTests
 
-// **The profile 0.98, 0.96, 0.94 cannot be used at the moment since the code was modified to work with HBase 1.1.0**
+The default build is linked to HBase 0.94. In order to build for another version, you should specify the version with the `-Dhbase.api` parameter. For example, to build for HBase 0.98, run the following command:
 
-The default build is linked to HBase 0.94. In order to build for HBase 0.98, run the following command:
-
-   mvn clean install -DskipTests -Dhbase.api=0.98
+   mvn clean package -DskipTests -Dhbase.api=0.98
 
 To build for HBase 1.1.0, run the following command:
 
-   mvn clean install -DskipTests -Dhbase.api=1.1.0
+   mvn clean package -DskipTests -Dhbase.api=1.1.0
 
-=== Building Hortonworks Version
-
-In order to build the full hbase-indexer project with a specific version of Hortonworks.
-
-   mvn clean package -Pdist -DskipTests -Dhbase.api=1.1.2 -Dhdp.version=".2.4.2.0-258"
-
-The profile 1.1.2 can only be used with the hdp version suffix (`-Dhdp.version`).
+// === Building Hortonworks Version
+//
+// In order to build the full hbase-indexer project with a specific version of Hortonworks.
+//
+//   mvn clean package -Pdist -DskipTests -Dhbase.api=1.1.2 -Dhdp.version=".2.4.2.0-258"
+// The profile 1.1.2 can only be used with the hdp version suffix (`-Dhdp.version`).
 // end::build-hbase][]
 
 // tag::use-hbase-indexer[]
@@ -127,32 +125,54 @@ In more detail, these properties are:
 * `replication.source.ratio`: Source ratio of 100% makes sure that each SEP consumer is actually used (otherwise, some can sit idle, especially with small clusters).
 * `replication.source.rb`: The maximum number of hlog entries to replicate in one go. If this is large, and a consumer takes a while to process the events, the HBase rpc call will time out.
 * `replication.replicationsource.implementation`: A custom replication source for indexing content to Solr.
+* `replication.source.ratio`: The ratio of the number of slave cluster regionservers the master cluster regionserver will connect to for updates. This should be set to 1.0 to get updates from all slaves.
 
 Once these values have been inserted to that file, HBase will need to be restarted. That is an upcoming step in the configuration.
 
-TIP: If you use Ambari to manage your cluster, you can set the properties by going to the HBase Configs screen at Ambari -> Configs -> Advanced tab -> Custom hbase-site.
+TIP: If you use Ambari to manage your cluster, you can set these properties by going to the HBase Configs screen at Ambari -> Configs -> Advanced tab -> Custom hbase-site.
+
+=== Copy hbase-site.xml to HBase Indexer
+Once you have added the new properties to `hbase-site.xml`, copy it to the hbase-indexer `conf` directory. In many cases, this is from `/etc/hbase/conf` to `hbase-indexer/conf`.
+
+Copying this file ensures all of the parameters configured for HBase (such as settings for Kerberos and ZooKeeper) are available to the HBase Indexer.
 
 === Copy JAR Files
 
 The SEP replication being used by HBase Indexer requires 4 jar files to be copied from to each HBase node.
 
-These jar files can be found in the `/opt/${namePackage}/hbase-indexer/lib` directory.
+These jar files can be found in the `hbase-indexer/lib` directory.
 
 They need to be copied to the `$HBASE_HOME/lib` directory on each node running HBase. These files are:
 
-* `hbase-sep-api-{version}.jar`
-* `hbase-sep-impl-{version}.jar`
-* `hbase-sep-impl-common-{version}.jar`
-* `hbase-sep-tools-{version}.jar`
+* `hbase-sep-api-{connectorVersion}.jar`
+* `hbase-sep-impl-{connectorVersion}.jar`
+* `hbase-sep-impl-common-{connectorVersion}.jar`
+* `hbase-sep-tools-{connectorVersion}.jar`
 
 === Enable Kerberos Support
-If you want to index content to a Solr cluster that has been secured with Kerberos for internode communication, you will need to supply the path to a JAAS file. This file configures the authentication properties, and will include a section for a service principal and keytab file for a user who has access to both HBase and Solr. This user should be a different user than the service principal that Solr is using for internode communication.
+If you want to index content to a Solr cluster that has been secured with Kerberos for internode communication, you will need to apply additional configuration.
 
-To configure HBase Indexer to be able to write to the Kerberized Solr, you will modify the `hbase-indexer` script found in `/opt/${namePackage}/hbase-indexer/bin`. The properties are commented out by default:
+A JAAS file configures the authentication properties, and will include a section for a service principal and keytab file for a user who has access to both HBase and Solr. This user should be a different user than the service principal that Solr is using for internode communication.
+
+To configure HBase Indexer to be able to write to Kerberized Solr, you will modify the `hbase-indexer` script found in `/opt/${namePackage}/hbase-indexer/bin`.
+
+Find the section where two of the properties are commented out by default:
 
 [source]
 #HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Dlww.jaas.file="
 #HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Dlww.jaas.appname="
+
+Uncomment those properties to supply the correct values (explained below), and then add another property:
+
+[source]
+HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Djava.security.auth.login.config=/etc/hbase/conf/hbase_client_jaas.conf"
+
+The three together should look similar to this:
+
+[source]
+HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Dlww.jaas.file="
+HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Dlww.jaas.appname="
+HBASE_INDEXER_OPTS="$HBASE_INDEXER_OPTS -Djava.security.auth.login.config=/etc/hbase/conf/hbase_client_jaas.conf"
 
 Remove the `#` to uncomment these lines, and supply values for each property:
 
@@ -165,40 +185,50 @@ Here is a sample section of a JAAS file, and the areas that must be changed for 
 Client { --<1>
   com.sun.security.auth.module.Krb5LoginModule required
   useKeyTab=true
-  keyTab="/data/solr-indexer.keytab" --<2>
+  keyTab="/data/hbase.keytab" --<2>
   storeKey=true
-  useTicketCache=true
+  useTicketCache=false
   debug=true
-  principal="solr-indexer@SOLRSERVER.COM"; --<3>
+  principal="hbase@SOLRSERVER.COM"; --<3>
+};
+SolrClient { --<4>
+  com.sun.security.auth.module.Krb5LoginModule required
+  useKeyTab=true
+  keyTab="/data/solr-indexer.keytab" --<5>
+  storeKey=true
+  useTicketCache=false
+  debug=true
+  principal="solr-indexer@SOLRSERVER.COM"; --<6>
 };
 +
-<1> The name of this section of the JAAS file. This name will be used with the `lww.jaas.appname` parameter as described below.
-<2> The location of the keytab file.
-<3> The service principal name. This should be a different principal than the one used for Solr, but must have access to both Solr and HBase.
+<1> The name of this section of the JAAS file. This first section named "Client" should contain the proper credentials for HBase and ZooKeeper.
+<2> The path to the keyTab file for the HBase user. The user running the hbase-indexer must have access to this file.
+<3> The service principal name for the HBase user.
+<4> The name of another section. This second section is named "SolrClient" and should contain the proper credentials for the user who will run the hbase-indexer. This section name will be used with the `-Dlww.jaas.appname` parameter as described below.
+<5> The path to the keyTab file for the Solr user. The user running the hbase-indexer must have access to this file.
+<6> The service principal name. This should be a different principal than the one used for Solr, but must have access to both Solr and HBase.
 
 `-Dlww.jaas.appname`::
 The name of the section in the JAAS file that includes the service principal and keytab location, as described above. If this is not defined, a default of "Client" will be used.
+
+`Djava.security.auth.login.config`::
+The path to the `hbase_client_jaas.conf` file which was set up when HBase was configured to use Kerberos.
 
 === Restart HBase
 
 Once each of the above changes have been made, restart HBase on all nodes.
 
-=== Copy hbase-site.xml to HBase Indexer
-Once you have added the new properties to `hbase-site.xml`, copy the file from `/etc/hbase/conf` to `/opt/${namePackage}/hbase-indexer/conf`.
+=== Start the HBase Indexer Daemon
 
-This step isn't always required, but if you have problems with table data being indexed to Solr, it's likely the HBase Indexer is having problems connecting to ZooKeeper. Copying this file will ensure all of the ZooKeeper parameters are available to the HBase Indexer.
+When configuration is complete and HBase has been restarted, you can start the HBase Indexer daemon.
 
-=== Start HBase Indexer Daemon
-
-When configuration is complete and HBase has been restarted, you can start the HBase Indexer.
-
-From `/opt/${namePackage}/hbase-indexer/bin`, run:
+From `hbase-indexer/bin`, run:
 
    hbase-indexer server &
 
 The `&` portion of this command will run the server in the background. If you would like to run it in the foreground, omit the `&` part of the above example.
 
-At this point the HBase Indexer daemon is running, you are ready to start indexing content.
+At this point the HBase Indexer daemon is running, you are ready to configure an indexer to start indexing content.
 // end::configure-daemon[]
 
 // tag::stream-data-indexer[]
@@ -234,20 +264,22 @@ Once we have an indexer configuration file, we can then start the indexer itself
 
 This command takes several properties, as in this example:
 
-[source,bash]
+[source,bash,subs="verbatim,attributes"]
 ----
 ./hbase-indexer add-indexer \ -- <1>
   -n myindexer \ -- <2>
   -c indexer-conf.xml \ -- <3>
-  -cp solr.zk=server1:3181,server2:3181,server3:3181 \ -- <4>
+  -cp solr.zk=server1:3181,server2:3181,server3:3181/solr \ -- <4>
   -cp solr.collection=myCollection -- <5>
+  -z server1:3181,server2:3181,server3:3181 -- <6>
 ----
 
 <1> The `hbase-indexer` script is found in `/opt/${namePackage}/hbase-indexer/bin` directory. The `add-indexer` command adds the indexer to the running hbase-indexer daemon.
 <2> The `-n` property provides a name for the indexer.
 <3> The `-c` property defines the location of the indexer configuration file. Provide the path as well as the filename if you are launching the
-<4> The `-cp` property is a key-value pair. In this case, it defines the location of ZooKeeper with the `solr.zk` property.
+<4> The `-cp` property allows you to provide a key-value pair. In this case, we use the `solr.zk` property to define the location of the ZooKeeper ensemble used with Solr. The ZooKeeper connect string should include `/solr` as the znode path.
 <5> Another `-cp` key-value pair, which defines the `solr.collection` property with a value of a collection name in Solr that the documents should be indexed to. This collection must exist prior to running the indexer.
+<6> The `-z` property defines the location of the ZooKeeper ensemble used with HBase. This may be the same as was defined in item (4) above, but needs to be additionally defined.
 
 More details on the options for `add-indexer` are available from https://github.com/NGDATA/hbase-indexer/wiki/CLI-tools.
 // end::stream-data-indexer[]
