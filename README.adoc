@@ -8,9 +8,9 @@ The HBase Indexer allows you to easily and quickly index HBase rows into Solr. I
 
 // Usage documentation can be found on the hbase-indexer Wiki - http://github.com/NGDATA/hbase-indexer/wiki.
 
-== Features of the Lucidworks hbase-indexer
+== Features of the Lucidworks HBase Indexer
 
-This project is a fork of the original http://github.com/NGDATA/hbase-indexer[hbase-indexer] from NGDATA, with these additional features:
+This project is a fork of the original http://github.com/NGDATA/hbase-indexer[hbase-indexer] project from NGDATA, with these additional features:
 
 * Support for HBase 0.94, 0.96, 0.98, 1.1.0 and 1.1.2
 * Support for Solr 5.x (Solr 6.x to come soon)
@@ -25,11 +25,11 @@ IMPORTANT: Due to the changes required for Solr 5.x support, builds from this fo
 
 === HBase SEP
 
-A standalone library for asynchronously processing HBase mutation events by hooking into HBase replication, see <<hbase-sep/README.md,the SEP readme>>.
+A standalone library for asynchronously processing HBase mutation events by hooking into HBase replication, see https://github.com/lucidworks/hbase-indexer/blob/master/hbase-sep/README.md[the SEP readme].
 
-=== HBase SEP & replication monitoring
+=== HBase SEP & Replication Monitoring
 
-A standalone utility to monitor HBase replication progress, see <<hbase-sep/hbase-sep-tools/README.md, the SEP-tools readme>>.
+A standalone utility to monitor HBase replication progress, see https://github.com/lucidworks/hbase-indexer/blob/master/hbase-sep/hbase-sep-tools/README.md[the SEP-tools readme].
 
 //end::subprojects-hbase[]
 // tag::build-hbase[]
@@ -63,7 +63,7 @@ To build for HBase 1.1.0, run the following command:
 
 The HBase Indexer works as an HBase replication sink and runs as a daemon. When updates are written to HBase region servers, they are replicated to the HBase Indexer processes. These processes then pass the updates to Solr for indexing.
 
-There are several configuration files to prepare before using the HBase Indexer. Then a specific configuration for your your HBase table must be supplied to map HBase rows to Solr documents.
+To use the HBase Indexer, there are several configuration files to prepare before using the HBase Indexer. Then a specific configuration for your your HBase table must be supplied to map HBase columns and rows to Solr fields and documents.
 
 If you are already using HBase replication, the HBase Indexer process should not interfere.
 // end::how-itworks[]
@@ -123,11 +123,11 @@ In more detail, these properties are:
 
 * `hbase.replication`: True or false; enables replication.
 * `replication.source.ratio`: Source ratio of 100% makes sure that each SEP consumer is actually used (otherwise, some can sit idle, especially with small clusters).
-* `replication.source.rb`: The maximum number of hlog entries to replicate in one go. If this is large, and a consumer takes a while to process the events, the HBase rpc call will time out.
-* `replication.replicationsource.implementation`: A custom replication source for indexing content to Solr.
 * `replication.source.ratio`: The ratio of the number of slave cluster regionservers the master cluster regionserver will connect to for updates. This should be set to 1.0 to get updates from all slaves.
+* `replication.source.nb.capacity`: The maximum number of hlog entries to replicate in one go. If this is large, and a consumer takes a while to process the events, the HBase rpc call will time out.
+* `replication.replicationsource.implementation`: A custom replication source for indexing content to Solr.
 
-Once these values have been inserted to that file, HBase will need to be restarted. That is an upcoming step in the configuration.
+Once these values have been inserted to `hbase-site.xml`, HBase will need to be restarted. That is an upcoming step in the configuration.
 
 TIP: If you use Ambari to manage your cluster, you can set these properties by going to the HBase Configs screen at Ambari -> Configs -> Advanced tab -> Custom hbase-site.
 
@@ -138,9 +138,9 @@ Copying this file ensures all of the parameters configured for HBase (such as se
 
 === Copy JAR Files
 
-The SEP replication being used by HBase Indexer requires 4 jar files to be copied from to each HBase node.
+The SEP replication being used by HBase Indexer requires 4 .jar files to be copied from the HBase Indexer distribution to each HBase node.
 
-These jar files can be found in the `hbase-indexer/lib` directory.
+These .jar files can be found in the `hbase-indexer/lib` directory.
 
 They need to be copied to the `$HBASE_HOME/lib` directory on each node running HBase. These files are:
 
@@ -211,7 +211,7 @@ SolrClient { --<4>
 };
 
 <1> The name of the section of the JAAS file for the HBase user. This first section named "Client" should contain the proper credentials for HBase and ZooKeeper.
-<2> The path to the keyTab file for the HBase user. The user running the hbase-indexer must have access to this file.
+<2> The path to the keyTab file for the HBase user. The user running the HBase Indexer must have access to this file.
 <3> The service principal name for the HBase user.
 <4> The name of the section for the user who will run the HBase Indexer. This second section is named "SolrClient" and should contain the proper credentials for the user who will run the HBase Indexer. This section name will be used with the `-Dlww.jaas.appname` parameter as described earlier.
 <5> The path to the keyTab file for the Solr user. The user running the HBase Indexer must have access to this file.
@@ -237,11 +237,11 @@ At this point the HBase Indexer daemon is running, you are ready to configure an
 // tag::stream-data-indexer[]
 == Stream Data from HBase Indexer to Solr
 
-The HBase Indexer replicates content being written to HBase and streams it to Solr for indexing.
+Once the HBase configuration files have been updated, HBase has been restarted on all nodes, and the daemon started, the next step is to create an indexer to stream data from a specific HBase table to Solr.
 
-IMPORTANT: The HBase table that will be indexed must have the REPLICATION_SCOPE set to "1".
+IMPORTANT: The HBase table that will be indexed must have the `REPLICATION_SCOPE` set to "1".
 
-If you are not familiar with HBase, the HBase Indexer tutorial provides a good starting point for creating a simple table and indexing it to Solr at https://github.com/NGDATA/hbase-indexer/wiki/Tutorial.
+If you are not familiar with HBase, the https://github.com/NGDATA/hbase-indexer/wiki/Tutorial[HBase Indexer tutorial] provides a good introduction to creating a simple table and indexing it to Solr.
 
 === Add an Indexer
 
