@@ -41,13 +41,12 @@ import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
-import org.apache.solr.client.solrj.impl.HttpClientUtil;
 import org.apache.solr.client.solrj.impl.HttpSolrClient;
-import org.apache.solr.client.solrj.impl.Krb5HttpClientConfigurer;
 import org.apache.solr.client.solrj.impl.XMLResponseParser;
 import org.apache.solr.client.solrj.request.QueryRequest;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.common.SolrException;
+import org.apache.solr.common.util.IOUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import org.apache.http.client.config.CookieSpecs;
@@ -121,7 +120,7 @@ public class FusionPipelineClient {
 
     String fusionLoginConf = System.getProperty(FusionKrb5HttpClientConfigurer.LOGIN_CONFIG_PROP);
     if (fusionLoginConf != null && !fusionLoginConf.isEmpty()) {
-      httpClient = FusionKrb5HttpClientConfigurer.createClient(fusionUser);
+      httpClient = getFusionHttpClient();
       isKerberos = true;
     } else {
       globalConfig = RequestConfig.custom().setCookieSpec(CookieSpecs.BEST_MATCH).build();
@@ -266,6 +265,18 @@ public class FusionPipelineClient {
     fusionSession.docsSentMeter = getMeterByHost("Docs Sent to Fusion", hostAndPort);
 
     return fusionSession;
+  }
+
+  private synchronized CloseableHttpClient getFusionHttpClient() {
+    if (!isKerberos) {
+      return httpClient;
+    }
+    //close old proxy
+    if (httpClient != null) {
+      IOUtils.closeQuietly(httpClient);
+    }
+    httpClient = FusionKrb5HttpClientConfigurer.createClient(fusionUser);
+    return httpClient;
   }
 
   protected synchronized void clearCookieForHost(String sessionHost) throws Exception {
@@ -489,7 +500,7 @@ public class FusionPipelineClient {
       HttpResponse response = null;
       HttpClientContext context = null;
       if (isKerberos) {
-        httpClient = FusionKrb5HttpClientConfigurer.createClient(fusionUser);
+        httpClient = getFusionHttpClient();
         response = httpClient.execute(postRequest);
       } else {
         context = HttpClientContext.create();
@@ -524,7 +535,7 @@ public class FusionPipelineClient {
 
         log.info("Going to re-try request "+requestId+" after session re-established with "+endpoint);
         if (isKerberos) {
-          httpClient = FusionKrb5HttpClientConfigurer.createClient(fusionUser);
+          httpClient = getFusionHttpClient();
           response = httpClient.execute(postRequest);
         } else {
           response = httpClient.execute(postRequest, context);

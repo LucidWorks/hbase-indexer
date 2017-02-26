@@ -1,6 +1,5 @@
 package com.ngdata.hbaseindexer.indexer;
 
-import com.google.common.collect.Sets;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpException;
@@ -8,7 +7,6 @@ import org.apache.http.HttpRequest;
 import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.Credentials;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.config.AuthSchemes;
 import org.apache.http.entity.BufferedHttpEntity;
 import org.apache.http.impl.auth.SPNegoSchemeFactory;
@@ -21,25 +19,12 @@ import org.apache.solr.common.params.SolrParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.security.auth.callback.Callback;
-import javax.security.auth.callback.CallbackHandler;
-
-import javax.security.auth.Subject;
-import javax.security.auth.callback.NameCallback;
-import javax.security.auth.callback.PasswordCallback;
-import javax.security.auth.callback.UnsupportedCallbackException;
-import javax.security.auth.kerberos.KerberosPrincipal;
 import javax.security.auth.login.AppConfigurationEntry;
 import javax.security.auth.login.Configuration;
-import javax.security.auth.login.LoginContext;
-import javax.security.auth.login.LoginException;
 import java.io.IOException;
 import java.security.Principal;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 public class FusionKrb5HttpClientConfigurer extends HttpClientConfigurer {
 
@@ -50,10 +35,6 @@ public class FusionKrb5HttpClientConfigurer extends HttpClientConfigurer {
   public static final String LOGIN_APP_NAME= "fusion.jaas.appname";
 
   private Configuration jaasConfig = null;
-
-  public Configuration getJaasConfig(){
-    return jaasConfig;
-  }
 
   public static synchronized CloseableHttpClient createClient(String fusionPrincipal){
     if (logger.isDebugEnabled()) {
@@ -91,21 +72,6 @@ public class FusionKrb5HttpClientConfigurer extends HttpClientConfigurer {
       if (configValue != null) {
         logger.debug("Setting up kerberos auth with config: " + configValue);
         System.setProperty("javax.security.auth.useSubjectCredsOnly", "false");
-
-        if (fusionPrincipal != null) {
-          Subject subject = new Subject(false, Sets.newHashSet(new KerberosPrincipal(fusionPrincipal)),
-              Collections.emptySet(), Collections.emptySet());
-          LoginContext loginContext;
-          try {
-            loginContext = new LoginContext("", subject, null, jaasConfig);
-            loginContext.login();
-            logger.debug("Successful Fusion Login with principal: " + fusionPrincipal);
-          } catch (LoginException e) {
-            String errorMessage = "Unsuccessful Fusion Login with principal: " + fusionPrincipal;
-            logger.error(errorMessage, e);
-            throw new RuntimeException(errorMessage, e);
-          }
-        }
 
         Configuration.setConfiguration(jaasConfig);
         httpClient.getAuthSchemes().register(AuthSchemes.SPNEGO, new SPNegoSchemeFactory(true, false));
