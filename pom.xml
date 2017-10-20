@@ -20,10 +20,10 @@
 
   <properties>
 
-    <project-version>2.2.8</project-version>
+    <project-version>3.0.0</project-version>
 
     <hdp.version></hdp.version>
-    <!--hdp.version>.2.3.2.0-2950</hdp.version-->
+    <!--hdp.version>.2.6.0.0-570</hdp.version-->
 
     <version.solr>5.5.2</version.solr>
     <version.guava>11.0.2</version.guava>
@@ -39,7 +39,7 @@
     <version.hadoop.hbase98>2.5.0-cdh5.2.0-SNAPSHOT</version.hadoop.hbase98>
     <version.hadoop.hbase98mapr>2.7.0-mapr-1506</version.hadoop.hbase98mapr>
     <version.hadoop.hbase110>2.7.0</version.hadoop.hbase110>
-    <version.hadoop.hbase112>2.7.1${hdp.version}</version.hadoop.hbase112>
+    <version.hadoop.hbase112>2.7.3${hdp.version}</version.hadoop.hbase112>
     <version.hadoop.mr1>2.0.0-mr1-cdh4.4.0</version.hadoop.mr1>
     <version.hadoop.mr1.hbase96>2.3.0-mr1-cdh5.0.0</version.hadoop.mr1.hbase96>
     <version.hadoop.mr1.hbase98>2.5.0-mr1-cdh5.2.0-SNAPSHOT</version.hadoop.mr1.hbase98>
@@ -468,7 +468,7 @@
       <dependency>
         <groupId>org.kohsuke</groupId>
         <artifactId>akuma</artifactId>
-        <version>1.9</version>
+        <version>1.10</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
