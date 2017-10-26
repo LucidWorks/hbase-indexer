@@ -27,9 +27,8 @@ import org.apache.solr.common.SolrException;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.SolrInputField;
 
-import org.apache.solr.common.util.DateUtil;
-
 import java.io.IOException;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -216,7 +215,7 @@ public class FusionDocumentWriter implements SolrInputDocumentWriter {
                 key.equals("inc")) {
               // keep track of the time we saw this doc on the hbase side
               Map<String,String> atomicUpdateMap = new HashMap<String, String>();
-              atomicUpdateMap.put("set", DateUtil.getThreadLocalDateFormat().format(new Date()));
+              atomicUpdateMap.put("set", DateTimeFormatter.ISO_INSTANT.format(new Date().toInstant()));
               doc.addField("_hbasets_tdt", atomicUpdateMap);
 
               // The atomic update documents should be added to the atomicUpdateDocs...
@@ -368,7 +367,7 @@ public class FusionDocumentWriter implements SolrInputDocumentWriter {
         }
       }
       // keep track of the time we saw this doc on the hbase side
-      String tdt = DateUtil.getThreadLocalDateFormat().format(new Date());
+      String tdt = DateTimeFormatter.ISO_INSTANT.format(new Date().toInstant());
       fields.add(mapField("_hbasets_tdt", null, tdt));
       if (log.isDebugEnabled())
           log.debug(strIndexName + " Reconcile id = " + docId + " and timestamp = " + tdt );
@@ -538,7 +537,7 @@ public class FusionDocumentWriter implements SolrInputDocumentWriter {
     } catch (Exception ignore){}
 
     try {
-      solrProxy.shutdown();
+      solrProxy.close();
     } catch (Exception ignore){}
   }
 

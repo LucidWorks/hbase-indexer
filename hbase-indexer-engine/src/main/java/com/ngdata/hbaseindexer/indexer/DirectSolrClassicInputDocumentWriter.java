@@ -168,7 +168,7 @@ public class DirectSolrClassicInputDocumentWriter implements SolrInputDocumentWr
     }
 
     /**
-     * Has the same behavior as {@link org.apache.solr.client.solrj.SolrServer#deleteByQuery(String)}.
+     * Has the same behavior as {@link org.apache.solr.client.solrj.SolrClient#deleteByQuery(String)}.
      *
      * @param deleteQuery delete query to be executed
      */
@@ -194,7 +194,11 @@ public class DirectSolrClassicInputDocumentWriter implements SolrInputDocumentWr
     @Override
     public void close() {
         for (SolrClient server : solrServers) {
-            server.shutdown();
+            try {
+                server.close();
+            } catch (IOException e) {
+                log.error("Error when closing SolrClient", e);
+            }
         }
     }
 

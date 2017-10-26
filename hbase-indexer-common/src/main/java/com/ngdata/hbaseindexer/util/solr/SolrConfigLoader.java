@@ -19,6 +19,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 
 import javax.xml.parsers.ParserConfigurationException;
@@ -52,7 +54,7 @@ public class SolrConfigLoader extends SolrResourceLoader {
      * Instantiate with the name of the configuration directory and the ZooKeeper used to access it.
      */
     public SolrConfigLoader(String collection, ZooKeeper zooKeeper) {
-        super("solr");
+        super(Paths.get("solr"));
         this.zk = zooKeeper;
         this.configZkPath = getCollectionConfigPath(collection);
     }
