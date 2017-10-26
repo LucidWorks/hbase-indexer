@@ -224,7 +224,7 @@ public class HBaseMapReduceIndexerTool extends Configured implements Tool {
         for (SolrClient server : servers) {
             server.deleteByQuery("*:*");
             server.commit(false, false);
-            server.shutdown();
+            server.close();
         }
     }
 
@@ -232,7 +232,7 @@ public class HBaseMapReduceIndexerTool extends Configured implements Tool {
         Set<SolrClient> servers = createSolrServers(indexConnectionParams);
         for (SolrClient server : servers) {
             server.commit(false, false);
-            server.shutdown();
+            server.close();
         }
     }
 

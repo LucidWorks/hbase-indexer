@@ -34,7 +34,7 @@ import com.ngdata.hbaseindexer.util.MavenUtil;
 import com.ngdata.sep.util.zookeeper.ZkUtil;
 import com.ngdata.sep.util.zookeeper.ZooKeeperItf;
 import org.apache.commons.io.FileUtils;
-import org.apache.solr.client.solrj.SolrServer;
+import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.cloud.ZkController;
 import org.apache.solr.common.cloud.OnReconnect;
 import org.apache.solr.common.cloud.SolrZkClient;
@@ -115,7 +115,7 @@ public class SolrTestingUtility {
             String solrVersion = properties.getProperty("solr.version");
             return solrVersion;
         } else {
-            return SolrServer.class.getPackage().getSpecificationVersion();
+            return SolrClient.class.getPackage().getSpecificationVersion();
         }
     }
 
